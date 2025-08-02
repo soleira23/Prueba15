@@ -26,6 +26,8 @@
     <input type="text" id="token2" placeholder="Token 2">
     <label>Token #3</label>
     <input type="text" id="token3" placeholder="Token 3">
+    <label>Número total de operaciones realizadas</label>
+    <input type="number" id="totalOperaciones" placeholder="Ej: 87">
     <button onclick="iniciarMonitoreo()">Iniciar monitoreo</button>
   </div>
 
@@ -73,11 +75,17 @@
         document.getElementById('token3').value.trim()
       ].filter(t => t !== '');
 
+      const totalOperaciones = parseInt(document.getElementById('totalOperaciones').value.trim());
+      if (isNaN(totalOperaciones) || totalOperaciones < 1) {
+        document.getElementById('alerta').textContent = '⚠️ Ingresa un número válido de operaciones realizadas.';
+        return;
+      }
+
       document.getElementById('alerta').textContent = `Monitoreando ${tokens.length} tokens...`;
 
       tokens.forEach(token => {
         setInterval(() => consultarAbierta(token), 3000);
-        setInterval(() => consultarRealizada(token), 5000);
+        setInterval(() => consultarRealizada(token, totalOperaciones), 5000);
       });
     }
 
@@ -103,28 +111,16 @@
       }
     }
 
-    async function consultarRealizada(token) {
+    async function consultarRealizada(token, totalOperaciones) {
       try {
-        // Paso 1: obtener totalCount
-        const resInicial = await fetch('https://api.zaffex.com/token/trades?page=1&pageSize=1', {
+        const lastPage = Math.ceil(totalOperaciones / 1);
+        const res = await fetch(`https://api.zaffex.com/token/trades?page=${lastPage}&pageSize=1`, {
           headers: { 'api-token': token }
         });
-        if (!resInicial.ok) return;
+        if (!res.ok) return;
 
-        const jsonInicial = await resInicial.json();
-        const total = jsonInicial.totalCount;
-        if (!total || isNaN(total)) return;
-
-        const lastPage = Math.ceil(total / 1);
-
-        // Paso 2: obtener la última operación
-        const resFinal = await fetch(`https://api.zaffex.com/token/trades?page=${lastPage}&pageSize=1`, {
-          headers: { 'api-token': token }
-        });
-        if (!resFinal.ok) return;
-
-        const jsonFinal = await resFinal.json();
-        const op = Array.isArray(jsonFinal.data) ? jsonFinal.data[0] : null;
+        const json = await res.json();
+        const op = Array.isArray(json.data) ? json.data[0] : null;
         if (!op) return;
 
         if (ultimosIds.realizadas[token] !== op.id) {
