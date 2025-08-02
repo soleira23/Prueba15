@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Monitor de Operaciones Zaffex</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f9f9f9; padding: 20px; }
+    h2 { text-align: center; }
+    .config { background: #fff; padding: 15px; border: 1px solid #ccc; margin-bottom: 20px; }
+    label { display: block; margin-top: 10px; }
+    input { width: 100%; padding: 8px; margin-top: 5px; }
+    button { margin-top: 15px; padding: 10px 20px; font-size: 16px; cursor: pointer; }
+    .alert { color: red; font-weight: bold; text-align: center; margin-top: 10px; }
+    table { border-collapse: collapse; width: 100%; background: #fff; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th { background-color: #f0f0f0; }
+  </style>
+</head>
+<body>
+  <h2>📡 Monitor de Operaciones Zaffex</h2>
+
+  <div class="config">
+    <label>Token #1</label>
+    <input type="text" id="token1" placeholder="Token 1">
+    <label>Token #2</label>
+    <input type="text" id="token2" placeholder="Token 2">
+    <label>Token #3</label>
+    <input type="text" id="token3" placeholder="Token 3">
+    <button onclick="iniciarMonitoreo()">Iniciar monitoreo</button>
+  </div>
+
+  <div id="alerta" class="alert"></div>
+
+  <h3>🔓 Últimas operaciones abiertas</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Token</th>
+        <th>ID</th>
+        <th>Symbol</th>
+        <th>Amount</th>
+        <th>Status</th>
+        <th>Created At</th>
+      </tr>
+    </thead>
+    <tbody id="tablaAbiertas"></tbody>
+  </table>
+
+  <h3>✅ Últimas operaciones realizadas</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Token</th>
+        <th>ID</th>
+        <th>Symbol</th>
+        <th>Amount</th>
+        <th>Status</th>
+        <th>Created At</th>
+      </tr>
+    </thead>
+    <tbody id="tablaRealizadas"></tbody>
+  </table>
+
+  <audio id="sonido" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+
+  <script>
+    const ultimosIds = { abiertas: {}, realizadas: {} };
+
+    function iniciarMonitoreo() {
+      const tokens = [
+        document.getElementById('token1').value.trim(),
+        document.getElementById('token2').value.trim(),
+        document.getElementById('token3').value.trim()
+      ].filter(t => t !== '');
+
+      document.getElementById('alerta').textContent = `Monitoreando ${tokens.length} tokens...`;
+
+      tokens.forEach(token => {
+        setInterval(() => consultarAbierta(token), 3000);
+        setInterval(() => consultarRealizada(token), 5000);
+      });
+    }
+
+    async function consultarAbierta(token) {
+      try {
+        const res = await fetch('https://api.zaffex.com/token/open?page=1&pageSize=1', {
+          headers: { 'api-token': token }
+        });
+        if (!res.ok) return;
+
+        const json = await res.json();
+        const op = Array.isArray(json.data) ? json.data[0] : null;
+        if (!op) return;
+
+        if (ultimosIds.abiertas[token] !== op.id) {
+          ultimosIds.abiertas[token] = op.id;
+          mostrarOperacion(op, token, 'tablaAbiertas');
+          document.getElementById('alerta').textContent = `🔔 Nueva operación abierta: ${op.symbol}`;
+          document.getElementById('sonido').play();
+        }
+      } catch (err) {
+        console.error(`Error abiertas (${token}):`, err);
+      }
+    }
+
+    async function consultarRealizada(token) {
+      try {
+        // Paso 1: obtener totalCount
+        const resInicial = await fetch('https://api.zaffex.com/token/trades?page=1&pageSize=1', {
+          headers: { 'api-token': token }
+        });
+        if (!resInicial.ok) return;
+
+        const jsonInicial = await resInicial.json();
+        const total = jsonInicial.totalCount;
+        if (!total || isNaN(total)) return;
+
+        const lastPage = Math.ceil(total / 1);
+
+        // Paso 2: obtener la última operación
+        const resFinal = await fetch(`https://api.zaffex.com/token/trades?page=${lastPage}&pageSize=1`, {
+          headers: { 'api-token': token }
+        });
+        if (!resFinal.ok) return;
+
+        const jsonFinal = await resFinal.json();
+        const op = Array.isArray(jsonFinal.data) ? jsonFinal.data[0] : null;
+        if (!op) return;
+
+        if (ultimosIds.realizadas[token] !== op.id) {
+          ultimosIds.realizadas[token] = op.id;
+          mostrarOperacion(op, token, 'tablaRealizadas');
+        }
+      } catch (err) {
+        console.error(`Error realizadas (${token}):`, err);
+      }
+    }
+
+    function mostrarOperacion(op, token, tablaId) {
+      const tabla = document.getElementById(tablaId);
+      const fila = document.createElement('tr');
+      fila.innerHTML = `
+        <td>${token.slice(0,6)}...</td>
+        <td>${op.id}</td>
+        <td>${op.symbol}</td>
+        <td>${op.amount}</td>
+        <td>${op.status}</td>
+        <td>${new Date(op.createdAt).toLocaleString()}</td>
+      `;
+      tabla.prepend(fila);
+    }
+  </script>
+</body>
+</html>
