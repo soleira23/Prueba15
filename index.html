@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+j<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -91,7 +91,7 @@
 
     async function consultarAbierta(token) {
       try {
-        const res = await fetch('https://api.zaffex.com/token/open?page=1&pageSize=1', {
+        const res = await fetch('https://api.zaffex.com/token/open?ticker=ETHUSDT 1&pageSize=1', {
           headers: { 'api-token': token }
         });
         if (!res.ok) return;
